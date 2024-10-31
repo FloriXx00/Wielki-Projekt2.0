@@ -1,2 +1,3 @@
 # Wielki-Projekt2.0
-Numeryczne rozwiązanie równania Schrödingera za pomocą metody Rungego-Kutty (RK4). Umożliwia on symulację ewolucji funkcji falowej cząstki w zadanym potencjale, co pozwala na lepsze zrozumienie zjawisk kwantowych. Projekt obejmuje symulacje dla różnych potencjałów, takich jak potencjał kwadratowy, wizualizację wyników za pomocą wykresów.
+Projekt ma na celu analityczne rozwiązanie równania Schrödingera dla cząstki w studni potencjału. Rozwiązanie to, wykonane przy użyciu biblioteki SciPy, umożliwia zbadanie stanów własnych i energii własnych cząstki w jednowymiarowym potencjale pudełkowym, co pozwala lepiej zrozumieć zachowanie kwantowe w takich układach.
+
