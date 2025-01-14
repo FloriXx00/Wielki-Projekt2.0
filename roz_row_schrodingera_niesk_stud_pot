@@ -1,0 +1,163 @@
+import numpy as np
+import matplotlib.pyplot as plt
+from scipy.integrate import solve_bvp
+import ipywidgets as widgets
+from ipywidgets import interact
+
+# Stałe fizyczne (przykładowe wartości)
+h_bar = 1.0545718e-34  # Stała Plancka podzielona przez 2π [J·s]
+m = 9.10938356e-31     # Masa elektronu [kg]
+
+# Funkcja obliczająca energię własną dla danego poziomu kwantowego n i długości L
+def calculate_energy(n, L):
+    energy = (n**2 * np.pi**2 * h_bar**2) / (2 * m * (L**2))  # Energia w jednostkach dżuli [J]
+    return energy
+
+# Funkcja do przeskalowania wartości energii w celu uproszczenia jednostek
+def scale_energy_values(energies):
+    max_energy = np.max(energies)  # Znajdujemy maksymalną wartość energii
+    if max_energy == 0:  # Obsługa przypadku, gdy wszystkie wartości są zerowe
+        return energies, "J", 1  # Brak skalowania, jednostka pozostaje w dżulach
+    scale_factor = 10**np.floor(np.log10(max_energy))  # Skalowanie do najbliższej potęgi 10
+    scaled_energies = energies / scale_factor  # Skalowanie energii
+    unit = f"10^{int(np.log10(scale_factor))} J"  # Nowa jednostka energii
+    return scaled_energies, unit, scale_factor
+
+# Funkcja Schrödingera w formie równania różniczkowego
+# y[0] = ψ(x), y[1] = dψ/dx
+def schr_eq(x, y, k):
+    return np.vstack((y[1], -k**2 * y[0]))
+
+# Warunki brzegowe dla równania Schrödingera (ψ(0) = 0, ψ(L) = 0)
+def boundary_conditions(ya, yb):
+    return np.array([ya[0], yb[0]])
+
+# Funkcja rozwiązująca równanie Schrödingera dla wybranego poziomu n i długości L
+def solve_for_n(n, L):
+    k = n * np.pi / L  # Parametr związany z liczbą falową
+    x = np.linspace(0, L, 500)  # Dyskretne punkty w przedziale [0, L]
+    
+    # Wstępne oszacowanie funkcji falowej (postać sinusoidalna)
+    y_guess = np.vstack((np.sin(n * np.pi * x / L), np.zeros_like(x)))
+    
+    # Rozwiązanie równania różniczkowego metodą warunków brzegowych
+    solution = solve_bvp(lambda x, y: schr_eq(x, y, k), boundary_conditions, x, y_guess)
+    
+    # Normalizacja funkcji falowej (skalowanie do jednostkowej normy)
+    if solution.success:  # Sprawdzenie poprawności rozwiązania
+        psi = solution.sol(x)[0]  # Funkcja falowa ψ(x)
+        norm = np.sqrt(np.trapz(psi**2, x))  # Obliczanie normy
+        psi /= norm  # Normalizacja funkcji falowej
+    else:  # Jeśli rozwiązanie nie powiodło się, zwracamy zerową funkcję falową
+        psi = np.zeros_like(x)
+    
+    return solution, x, psi
+
+# Funkcja do obliczania wartości oczekiwanych ⟨x⟩ i ⟨x²⟩
+def calculate_expectation_values(x, psi):
+    prob_density = psi**2  # Gęstość prawdopodobieństwa (kwadrat funkcji falowej)
+    dx = x[1] - x[0]  # Przybliżenie różnicy między kolejnymi punktami
+    expected_x = np.sum(x * prob_density) * dx  # Wartość oczekiwana ⟨x⟩
+    expected_x2 = np.sum(x**2 * prob_density) * dx  # Wartość oczekiwana ⟨x²⟩
+    return expected_x, expected_x2
+
+# Funkcja obliczająca wartości teoretyczne ⟨x⟩, ⟨x²⟩ oraz odchylenie standardowe
+def theoretical_expectations(n, L):
+    expected_x_theoretical = L / 2
+    expected_x2_theoretical = (L**2 / 3) - (L**2 / (2 * n**2 * np.pi**2))
+    std_x_theoretical = np.sqrt(expected_x2_theoretical - expected_x_theoretical**2)
+    return expected_x_theoretical, expected_x2_theoretical, std_x_theoretical
+
+        # Funkcja aktualizująca wykresy i wyświetlająca wyniki
+       # Wykres energii własnych z uwzględnieniem teoretycznych wartości
+def update_plot_with_theoretical_comparison(n=1, L=1):
+    L = round(L, 5)  # Zaokrąglenie długości L do 5 miejsc po przecinku
+    L_display = f"{L:.2f}"  # Formatowanie do dwóch miejsc po przecinku
+
+    # Rozwiązanie równania Schrödingera dla wybranego poziomu n
+    solution, x_plot, psi = solve_for_n(n, L)
+    energies = np.array([calculate_energy(i, L) for i in range(1, 11)])  # Obliczenie energii dla n=1...10
+    scaled_energies, energy_unit, _ = scale_energy_values(energies)
+
+    if solution.success:  # Jeśli rozwiązanie jest poprawne
+        # Wyznaczanie położenia węzłów (punktów zerowych funkcji falowej)
+        nodes = [(k * L) / n for k in range(1, n)]
+
+        # Obliczanie wartości oczekiwanych ⟨x⟩, ⟨x²⟩ oraz odchylenia standardowego
+        expected_x, expected_x2 = calculate_expectation_values(x_plot, psi)
+        std_x = np.sqrt(expected_x2 - expected_x**2)  # Odchylenie standardowe σₓ
+        
+        # Obliczanie wartości teoretycznych
+        expected_x_theo, expected_x2_theo, std_x_theo = theoretical_expectations(n, L)
+
+        # Tworzenie wykresów
+        fig, axes = plt.subplots(3, 1, figsize=(15, 20))
+
+        # Wykres funkcji falowej z zaznaczonymi węzłami (teoretyczne i numeryczne)
+        axes[0].plot(x_plot, psi, label=f"n={n}, L={L_display}")
+        axes[0].scatter(nodes, [0] * len(nodes), color='red', label="Węzły (numeryczne)", zorder=5)
+        for node in nodes:
+            axes[0].axvline(node, color='orange', linestyle='--', label="Węzły (teoretyczne)" if node == nodes[0] else None)
+        axes[0].set_title(f"Funkcja falowa i węzły dla n={n} i L={L_display}")
+        axes[0].set_xlabel("x")
+        axes[0].set_ylabel("ψ(x)")
+        axes[0].legend()
+        axes[0].grid(True)
+
+        # Wykres funkcji falowych dla n=1...5
+        for i in range(1, 6):
+            solution_all, x_plot_all, psi_all = solve_for_n(i, L)
+            if solution_all.success:
+                axes[1].plot(x_plot_all, psi_all, label=f"n={i}")
+        axes[1].set_title(f"Funkcje falowe dla n=1 do n=5, L={L_display}")
+        axes[1].set_xlabel("x")
+        axes[1].set_ylabel("ψ(x)")
+        axes[1].legend()
+        axes[1].grid(True)
+
+        # Energia teoretyczna na wykresie energii własnych
+        theoretical_energies = np.array([calculate_energy(i, L) for i in range(1, 11)])
+        scaled_theoretical_energies, _, _ = scale_energy_values(theoretical_energies)
+
+        # Wykres energii własnych
+        axes[2].scatter(range(1, 11), scaled_energies, color='blue', label="Energie (numeryczne)")
+        axes[2].scatter(range(1, 11), scaled_theoretical_energies, color='red', marker='x', label="Energie (teoretyczne)")
+        axes[2].set_title("Energie własne")
+        axes[2].set_xlabel("Poziom kwantowy n")
+        axes[2].set_ylabel(f"Energia ({energy_unit})")
+        axes[2].legend()
+        axes[2].grid(True)
+
+        plt.tight_layout()
+        plt.show()
+
+        # Wyświetlanie wyników w polu tekstowym
+        with output_nodes:
+            output_nodes.clear_output()
+            print(f"Węzły dla n={n}, L={L_display}:")
+            for i, node in enumerate(nodes, start=1):
+                print(f"  Węzeł {i}: x = {node:.3f} m")
+            print("\nWartości oczekiwane (numeryczne):")
+            print(f"  ⟨x⟩ = {expected_x:.3f} m")
+            print(f"  ⟨x²⟩ = {expected_x2:.3f} m²")
+            print(f"  Odchylenie standardowe σₓ = {std_x:.3f} m")
+            print("\nWartości oczekiwane (teoretyczne):")
+            print(f"  ⟨x⟩ = {expected_x_theo:.3f} m")
+            print(f"  ⟨x²⟩ = {expected_x2_theo:.3f} m²")
+            print(f"  Odchylenie standardowe σₓ = {std_x_theo:.3f} m")
+
+# Interaktywne suwaki
+n_slider = widgets.IntSlider(value=1, min=1, max=10, step=1, description="Poziom (n):")
+L_slider = widgets.FloatSlider(value=1.0, min=0.1, max=5.0, step=0.1, description="Długość L:")
+
+# Pole tekstowe do wyświetlania wyników
+output_nodes = widgets.Output()
+
+# Interaktywna funkcja
+interactive_widget = widgets.interactive(update_plot_with_theoretical_comparison, n=n_slider, L=L_slider)
+
+# Wyświetlanie suwaków i wykresów
+ui = widgets.VBox([widgets.HBox([n_slider, L_slider]), output_nodes])
+display(ui)
+display(interactive_widget.children[-1])
+
