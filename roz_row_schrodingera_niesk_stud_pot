@@ -4,27 +4,27 @@ from scipy.integrate import solve_bvp
 import ipywidgets as widgets
 from ipywidgets import interact
 
-# Stałe fizyczne (przykładowe wartości)
-h_bar = 1.0545718e-34  # Stała Plancka podzielona przez 2π [J·s]
+# Stałe fizyczne
+h_bar = 1.0545718e-34  # Zredukowana stała Plancka [J·s]
 m = 9.10938356e-31     # Masa elektronu [kg]
 
 # Funkcja obliczająca energię własną dla danego poziomu kwantowego n i długości L
 def calculate_energy(n, L):
-    energy = (n**2 * np.pi**2 * h_bar**2) / (2 * m * (L**2))  # Energia w jednostkach dżuli [J]
+    energy = (n**2 * np.pi**2 * h_bar**2) / (2 * m * (L**2))  # Energia [J]
     return energy
 
-# Funkcja do przeskalowania wartości energii w celu uproszczenia jednostek
+# Funkcja do przeskalowania wartości energii
 def scale_energy_values(energies):
-    max_energy = np.max(energies)  # Znajdujemy maksymalną wartość energii
-    if max_energy == 0:  # Obsługa przypadku, gdy wszystkie wartości są zerowe
+    max_energy = np.max(energies)  # szukanie maksymalnej wartości energii
+    if max_energy == 0:  # case, wszystkie wartości zerowe
         return energies, "J", 1  # Brak skalowania, jednostka pozostaje w dżulach
     scale_factor = 10**np.floor(np.log10(max_energy))  # Skalowanie do najbliższej potęgi 10
-    scaled_energies = energies / scale_factor  # Skalowanie energii
-    unit = f"10^{int(np.log10(scale_factor))} J"  # Nowa jednostka energii
+    scaled_energies = energies / scale_factor  # Skalowanie
+    unit = f"10^{int(np.log10(scale_factor))} J"  # Nowa jednostka w naukowym zapisie
     return scaled_energies, unit, scale_factor
 
-# Funkcja Schrödingera w formie równania różniczkowego
-# y[0] = ψ(x), y[1] = dψ/dx
+# Funkcja Schrödingera (forma równania różniczkowego)
+# y[0] = ψ(x), y[1] = dψ/dx, k potencjał kinetyczny
 def schr_eq(x, y, k):
     return np.vstack((y[1], -k**2 * y[0]))
 
@@ -40,35 +40,34 @@ def solve_for_n(n, L):
     # Wstępne oszacowanie funkcji falowej (postać sinusoidalna)
     y_guess = np.vstack((np.sin(n * np.pi * x / L), np.zeros_like(x)))
     
-    # Rozwiązanie równania różniczkowego metodą warunków brzegowych
+    # Rozwiązanie równania różniczkowego metodą warunków brzegowych funkcją solve_bvp
     solution = solve_bvp(lambda x, y: schr_eq(x, y, k), boundary_conditions, x, y_guess)
     
     # Normalizacja funkcji falowej (skalowanie do jednostkowej normy)
     if solution.success:  # Sprawdzenie poprawności rozwiązania
         psi = solution.sol(x)[0]  # Funkcja falowa ψ(x)
         norm = np.sqrt(np.trapz(psi**2, x))  # Obliczanie normy
-        psi /= norm  # Normalizacja funkcji falowej
-    else:  # Jeśli rozwiązanie nie powiodło się, zwracamy zerową funkcję falową
+        psi /= norm  # Normalizacja funkcji falowej, dzielenie tablicy psi przez norme 
+    else:  # Jeśli nie ma rozwiązania z jakiegoś powodu to 0 
         psi = np.zeros_like(x)
-    
     return solution, x, psi
 
-# Funkcja do obliczania wartości oczekiwanych ⟨x⟩ i ⟨x²⟩
+# Funkcja do obliczania wartości oczekiwanych ⟨x⟩ i ⟨x^2⟩
 def calculate_expectation_values(x, psi):
     prob_density = psi**2  # Gęstość prawdopodobieństwa (kwadrat funkcji falowej)
     dx = x[1] - x[0]  # Przybliżenie różnicy między kolejnymi punktami
     expected_x = np.sum(x * prob_density) * dx  # Wartość oczekiwana ⟨x⟩
-    expected_x2 = np.sum(x**2 * prob_density) * dx  # Wartość oczekiwana ⟨x²⟩
+    expected_x2 = np.sum(x**2 * prob_density) * dx  # Wartość oczekiwana ⟨x^2⟩
     return expected_x, expected_x2
 
-# Funkcja obliczająca wartości teoretyczne ⟨x⟩, ⟨x²⟩ oraz odchylenie standardowe
+# Funkcja obliczająca wartości teoretyczne ⟨x⟩, ⟨x^2⟩ oraz odchylenie standardowe
 def theoretical_expectations(n, L):
     expected_x_theoretical = L / 2
     expected_x2_theoretical = (L**2 / 3) - (L**2 / (2 * n**2 * np.pi**2))
     std_x_theoretical = np.sqrt(expected_x2_theoretical - expected_x_theoretical**2)
     return expected_x_theoretical, expected_x2_theoretical, std_x_theoretical
 
-        # Funkcja aktualizująca wykresy i wyświetlająca wyniki
+    # Funkcja aktualizująca wykresy i wyświetlająca wyniki
        # Wykres energii własnych z uwzględnieniem teoretycznych wartości
 def update_plot_with_theoretical_comparison(n=1, L=1):
     L = round(L, 5)  # Zaokrąglenie długości L do 5 miejsc po przecinku
@@ -79,18 +78,18 @@ def update_plot_with_theoretical_comparison(n=1, L=1):
     energies = np.array([calculate_energy(i, L) for i in range(1, 11)])  # Obliczenie energii dla n=1...10
     scaled_energies, energy_unit, _ = scale_energy_values(energies)
 
-    if solution.success:  # Jeśli rozwiązanie jest poprawne
-        # Wyznaczanie położenia węzłów (punktów zerowych funkcji falowej)
+    if solution.success:  # Jeśli rozwiązanie jest poprawne :O:O:O
+        # Wyznaczanie położenia węzłów
         nodes = [(k * L) / n for k in range(1, n)]
 
-        # Obliczanie wartości oczekiwanych ⟨x⟩, ⟨x²⟩ oraz odchylenia standardowego
+        # Obliczanie wartości oczekiwanych ⟨x⟩, ⟨x^2⟩ oraz odchylenia standardowego
         expected_x, expected_x2 = calculate_expectation_values(x_plot, psi)
-        std_x = np.sqrt(expected_x2 - expected_x**2)  # Odchylenie standardowe σₓ
+        std_x = np.sqrt(expected_x2 - expected_x**2)  # Odchylenie standardowe σ_x
         
         # Obliczanie wartości teoretycznych
         expected_x_theo, expected_x2_theo, std_x_theo = theoretical_expectations(n, L)
 
-        # Tworzenie wykresów
+        # wykresy
         fig, axes = plt.subplots(3, 1, figsize=(15, 20))
 
         # Wykres funkcji falowej z zaznaczonymi węzłami (teoretyczne i numeryczne)
@@ -117,7 +116,7 @@ def update_plot_with_theoretical_comparison(n=1, L=1):
 
         # Energia teoretyczna na wykresie energii własnych
         theoretical_energies = np.array([calculate_energy(i, L) for i in range(1, 11)])
-        scaled_theoretical_energies, _, _ = scale_energy_values(theoretical_energies)
+        scaled_theoretical_energies, _, _ = scale_energy_values(theoretical_energies) #funkcja zwraca 3 wartości ale potrzebna jest tylko 1 
 
         # Wykres energii własnych
         axes[2].scatter(range(1, 11), scaled_energies, color='blue', label="Energie (numeryczne)")
